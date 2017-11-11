@@ -28,7 +28,7 @@
 ;  The QSFIT version.
 ;
 FUNCTION qsfit_version
-  RETURN, '1.2.2'
+  RETURN, '1.2.0'
 END
 
 ;=====================================================================
@@ -56,7 +56,7 @@ PRO qsfit_prepare_options, DEFAULT=default
         balmer_fixed_min_z: 1.1, $
  
         ;; Max redshift to keep the ironuv component fixed.
-        ironuv_fixed_max_z: 0.4, $
+        ironuv_fixed_max_z: 0.4,   $
 
         ;; Galaxy template: SWIRE_ELL2 SWIRE_SC SWIRE_ARP220
         ;; etc... (see qsfit_comp_galaxytemplate.pro)
@@ -73,10 +73,6 @@ PRO qsfit_prepare_options, DEFAULT=default
         ;; redshift the parameter is free to vary.  This functionality
         ;; allows to avoid degeneracy with the host galaxy template.
         alpha1_fixed_max_z: 0.6,   $
-
-        ;; String containing a (comma separated) list of rest frame
-        ;; wavelengths of the absorption lines
-        abslines_wavelengths: '', $
 
         ;; If 1 creates PDF file of each step during fitting
         show_step: 0b              $
@@ -200,112 +196,6 @@ END
 
 
 
-;=====================================================================
-;NAME:
-;  qsfit_read_ascii
-;
-;PURPOSE:
-;  Read an ASCII files with three columns separated by spaces.  The
-;  columns should contain: the observed wavelength in Angstrom, the
-;  observed flux in units of 10^-17 erg s^-1 cm^-2 A^-1, and its
-;  1-sigma uncertainty.
-;
-;PARAMETERS:
-;  FILENAME (input, a scalar string)
-;    The path to an ASCII spectrum file.
-;
-;  ID= (optional input, a scalar string)
-;    A spectrum identifier to be inserted into GFIT dataset user
-;    data.
-;
-;  Z= (optional input, a scalar number)
-;   The source redshift.  If not given the redshift is read from the
-;   FITS file.
-;
-;  EBV= (optional input, a scalar number)
-;   The source colour excess.  If not given it is calculated using the
-;   Schlegel et al. (1998) maps.
-;
-PRO qsfit_read_ascii, filename, ID=id, Z=z, EBV=ebv
-  COMPILE_OPT IDL2
-  ON_ERROR, !glib.on_error
-  COMMON GFIT
-
-  IF (~gfexists(filename)) THEN $
-     MESSAGE, 'File: ' + filename + ' does not exists'
-
-  IF (gn(ebv) EQ 0) THEN BEGIN
-     MESSAGE, 'Color excess must be given through the EBV= keyword'
-  ENDIF
-  IF (~KEYWORD_SET(z)) THEN BEGIN
-     MESSAGE, 'Redshift must be given through the Z= keyword'
-  ENDIF
-  IF (z GT 2.12) THEN $
-     MESSAGE, 'Analysis of sources with Z>2.12 is not yet supported'
-
-  template = {x: 0.d, y: 0.d, e: 0.d}
-  data = greadtexttable(filename, ' ', /dropnull, template=template)
-  
-  tmp = data.x - SHIFT(data.x,1)
-  tmp = tmp[1:*] / data[1:*].x
-  qsfit_log, 'Spectral resolution (min, max): ' + STRJOIN(gn2s(gminmax(tmp*3.e5)), ", ") + ' km s^-1'
-
-  ;;Prepare user data with additional info from the FITS file.
-  IF (gn(id) EQ 0) THEN id = ''
-  udata = {id:   STRING(id), $
-           file: filename  , $
-           ebv:  ebv       , $
-           z:    z         , $
-           ra:   gnan()    , $
-           dec:  gnan()    , $
-           fitshead: ['']  , $
-           median_flux: 0. , $
-           median_err:  0. , $
-           goodFraction: 1.  $
-          }
-
-  ;;Transform to rest frame.  Final units are:
-  ;;xx     : AA
-  ;;yy, ee : 10^42 erg s^-1 AA^-1
-  i = SORT(data.x)
-  data = data[i]
-  xx = data.x
-  yy = data.y
-  ee = data.e
-  qsfit_spec2restframe, xx, yy, ee, z, ebv
-  data.x = TEMPORARY(xx)
-  data.y = TEMPORARY(yy)
-  data.e = TEMPORARY(ee)
-
-  ;;Save median flux and error
-  udata.median_flux = MEDIAN(data.y)
-  udata.median_err  = MEDIAN(data.e)
-
-  ;;Initialize gfit
-  gfit_init
-
-  ;;Add data into gfit
-  gfit_add_data, data.x, data.y, data.e, UDATA=udata
-
-  gfit_prepare_cmp
-
-  ;;Ignore data below emission lines with insufficient coverage.
-  ;;Note: this steps must be performed before adding components since
-  ;;some of them rely on the assumption that the X values do not vary
-  ;;between one call and the other.
-  qsfit_ignore_data_on_missing_lines
-
-  ;;Setup appropriate titles for plot
-  tmp = (STRSPLIT(filename, '/', /extract))[-1]  ;;extract filename, drop directories
-  gfit.plot.(0).main.title = tmp + ', z=' + gn2s(z) + ', E(B-V)=' + gn2s(ebv)
-  gfit.plot.(0).main.rebin = 1
-  gfit.plot.(0).data.label = 'Data'
-
-  ;;angstrom = '!6!sA!r!u!9 %!6!n'
-  gfit.plot.(0).main.xtit  = 'Rest frame wavelength [A]'
-  gfit.plot.(0).main.ytit  = 'Lum. density [10^{42} erg s^{-1} A^{-1}]'
-END
-
 
 ;=====================================================================
 ;NAME:
@@ -409,11 +299,7 @@ PRO qsfit_read_SDSS_DR10, filename, ID=id, Z=z, EBV=ebv
   ;;Prepare user data with additional info from the FITS file.
   IF (gn(id) EQ 0) THEN id = ''
 
-  ;;Get X, Y and error quantities
   xx = 10.d^fits.loglam
-  yy = DOUBLE(fits.flux)
-  ee = SQRT(1.d / fits.ivar)
-
   udata = {id:   STRING(id), $
            file: (STRSPLIT(filename, PATH_SEP(), /extract))[-1], $
            ebv:  ebv       , $
@@ -423,15 +309,17 @@ PRO qsfit_read_SDSS_DR10, filename, ID=id, Z=z, EBV=ebv
            fitshead: head  , $
            median_flux: 0. , $
            median_err:  0. , $
-           goodFraction: goodFraction, $
-           obs_x: xx, $
-           obs_y: yy, $
-           obs_e: ee  $
+           goodFraction: goodFraction $
           }
 
   tmp = xx - SHIFT(xx,1)
   tmp = tmp[1:*] / xx[1:*]
   qsfit_log, 'Spectral resolution (min, max): ' + STRJOIN(gn2s(gminmax(tmp*3.e5)), ", ") + ' km s^-1'
+
+  ;;Get X, Y and error quantities
+  xx = 10.d^fits.loglam
+  yy = DOUBLE(fits.flux)
+  ee = SQRT(1.d / fits.ivar)
 
   ;;Transform to rest frame.  Final units are:
   ;;xx     : AA
@@ -481,13 +369,13 @@ END
 ;  Returns the line coverage fraction of an emission line.
 ;
 ;DESCRIPTION:
-;  The line coverage fraction is the ratio of the number of "good"
-;  channels over thos of an optimal grid, whose resolution is
-;  specified through the RESOLUTION keyword.  width.  The minimum line
-;  coverage is 0, the maximum is 1.  A good line coverage, say above
-;  0.5, ensure that the line quantities are well constrained (provided
-;  the line is sufficiently bright).  If the whole line width lies
-;  outside the available wavelength range the return value is 0.
+;  The line coverage fraction is the ratio of "good" channels over all
+;  available channels for an emission line with given width.  The
+;  minimum line coverage is 0, the maximum is 1.  A good line
+;  coverage, say above 0.5, ensure that the line quantities are well
+;  constrained (provided the line is sufficiently bright).  If the
+;  whole line width lies outside the available wavelength range the
+;  return value is 0.
 ;
 ;PARAMETERS:
 ;  WAVE (input, a scalar number)
@@ -497,33 +385,34 @@ END
 ;    The range (centered on WAVE) where the line coverage is to be
 ;    evaluated (in km s^-1).
 ;
-;  RESOLUTION= (optional input, a scalar number).
-;    The resolution of the grid to compute the coverage (in km s^-1).
+;  GOOD= (output, an array of integers).
+;    The indices of "good" spectral channels in the selected range.
 ;
-;  INDEX= (output, an array of integers).
-;    The indices of spectral channels in the selected range.
+;  TOTAL= (output, an array of integers).
+;    The indices of all spectral channels in the selected range.
 ;
 ;RETURN VALUE: (a scalar floating point)
 ;  The emission line coverage
 ;
-FUNCTION qsfit_line_coverage, wave, width, INDEX=index, RESOLUTION=resolution
+FUNCTION qsfit_line_coverage, wave, width, TOTAL=total, GOOD=good
   COMPILE_OPT IDL2
   ON_ERROR, !glib.on_error
   COMMON GFIT
 
-  ;; Calculate optimal grid
-  IF (gn(resolution) EQ 0) THEN resolution = 70. ;km / s
-  step = resolution / 3.e5 * wave
   width_aa = width / 3.e5 * wave
 
-  ;;Match index points against optimal grid
-  index = WHERE(ABS(gfit.data.(0).x - wave) LT width_aa/2.   AND   (gfit.data.(0).group GE 0))
-  IF (index[0] EQ -1) THEN RETURN, 0.
+  ;;Evaluate GOOD and TOTAL indices
+  good  = WHERE(ABS(gfit.data.(0).x - wave) LT width_aa/2.   AND   (gfit.data.(0).group GE 0))
+  total = WHERE(ABS(gfit.data.(0).x - wave) LT width_aa/2.)
 
-  good = gfit.data.(0).x[index]
-  good = HISTOGRAM(good, binsize=step)
-  good[WHERE(good GE 1)] = 1
-  coverage = TOTAL(good) / (width_aa / step)
+  IF (total[0] EQ -1) THEN RETURN, 0
+  IF (good [0] EQ -1) THEN RETURN, 0
+
+  ;;Ensure the whole line is visible within the spectrum
+  IF (gfit.data.(0).x[0]  GT wave - width_aa/2.) THEN RETURN, 0.
+  IF (gfit.data.(0).x[-1] LT wave + width_aa/2.) THEN RETURN, 0.
+
+  coverage = FLOAT(gn(good)) / FLOAT(gn(total))
   RETURN, coverage
 END
 
@@ -634,12 +523,8 @@ PRO qsfit_compile
 
   ;;Setup GFIT model expression: actually the sum of all components
   cnames = (TAG_NAMES(gfit.comp))[0:gfit.comp.nn-1] ;;Model
-  i = WHERE(STRMID(cnames, 0, 4) NE 'ABS_')
-  gfit.expr.(0).model = STRJOIN(cnames[i], ' + ')
+  gfit.expr.(0).model = STRJOIN(cnames, ' + ')
 
-  IF (gsearch(STRMID(cnames, 0, 4) EQ 'ABS_', i)) THEN $
-     gfit.expr.(0).model = '(1 - (' + STRJOIN(cnames[i], ' + ') + ')) * (' + gfit.expr.(0).model + ')'
-  
   ;;Compile GFIT model
   gfit_compile
 END
@@ -858,21 +743,7 @@ FUNCTION qsfit_lineset
     str.name = 'SII_6716'    & str.wave = 6718.29   &  str.type = 'N'  & all.add, str ;;[SII]
     str.name = 'SII_6731'    & str.wave = 6732.67   &  str.type = 'N'  & all.add, str ;;[SII]
 
-  all = all.toArray()
-
-  ;; Add absorption lines
-  tmp = !QSFIT_OPT.abslines_wavelengths
-  IF (STRTRIM(tmp, 2) NE '') THEN BEGIN
-     tmp = FLOAT(STRSPLIT(tmp, ',', /extract))
-     FOR i=0, gn(tmp)-1 DO BEGIN
-        all = [all, all[-1]]
-        all[-1].name = gn2s(i+1)
-        all[-1].wave = tmp[i]
-        all[-1].type = 'A'
-     ENDFOR
-  ENDIF
-
-  RETURN, all
+  RETURN, all.toArray()
 END
 
 
@@ -899,7 +770,7 @@ PRO qsfit_ignore_data_on_missing_lines
 
   FOR i=0, gn(lines)-1 DO BEGIN
      ;;Estimate line coverage
-     coverage = qsfit_line_coverage(lines[i].wave, (lines[i].type EQ 'N' ? 1e3 : 1.2e4), index=toBeIgnored)
+     coverage = qsfit_line_coverage(lines[i].wave, (lines[i].type EQ 'N' ? 1e3 : 1.2e4), total=toBeIgnored)
      qsfit_log, 'The line ' + lines[i].name + ' has a coverage of ' + STRING(coverage)
 
      ;;Ensure that the whole line has at least 60% of "good" channels
@@ -950,7 +821,6 @@ PRO qsfit_add_lineset
   FOR i=0, gn(lines)-1 DO BEGIN
      ;;lines[i].type EQ 'N' ==> Narrow line
      ;;lines[i].type EQ 'B' ==> Broad line
-     ;;lines[i].type EQ 'A' ==> Absorption line
 
      ;;Estimate line coverage
      coverage = qsfit_line_coverage(lines[i].wave, (lines[i].type EQ 'N' ? 1e3 : 1e4))
@@ -1010,19 +880,6 @@ PRO qsfit_add_lineset
 
         gfit_add_comp, type=comp, 'br_' + lines[i].name
      ENDIF
-
-     tmp = comp
-     IF (lines[i].type EQ 'A') THEN BEGIN
-        tmp.norm.val      = 0.1
-        tmp.fwhm.val      = 3000         ;CUSTOMIZABLE
-        tmp.fwhm.limits   = [200, 1.5e4] ;CUSTOMIZABLE
-        tmp.center.val    = lines[i].wave
-        tmp.center.limits = tmp.center.val + [-100, 100] ;CUSTOMIZABLE
-        tmp.center.fixed  = 0
-        tmp.v_off.fixed   = 1
-        gfit_add_comp, type=tmp, 'abs_' + lines[i].name
-     ENDIF
-     tmp = []
   ENDFOR
 
   ;;Add "unknwon" lines
@@ -1068,14 +925,6 @@ PRO qsfit_add_lineset
                  STRJOIN('na_' + lines[WHERE(lines.type EQ 'N'  OR  lines.type EQ 'BN')].name, ' + ')
   gfit.plot.(0).expr_narrowlines.label = 'Narrow'
   gfit.plot.(0).expr_narrowlines.gp = 'w line ls 1 lw 2 lt rgb "dark-red"'
-
-  IF (gsearch(lines.type EQ 'A', i)) THEN $
-     gfit_add_expr, 'expr_AbsLines', STRJOIN('abs_' + lines[i].name, ' + ') $
-  ELSE $
-     gfit_add_expr, 'expr_AbsLines', '0'
-  gfit.plot.(0).expr_abslines.label = 'Absorption'
-  gfit.plot.(0).expr_abslines.gp = 'w line ls 1 lw 2 lt rgb "black"'
-  gfit.plot.(0).expr_abslines.plot = 0 ;;Do not show this expression in plots
 
   IF (!QSFIT_OPT.unkLines GT 0) THEN $
      gfit_add_expr, 'expr_Unknown', STRJOIN('unk' + gn2s(INDGEN(!QSFIT_OPT.unkLines)+1), ' + ') $
@@ -1307,8 +1156,7 @@ PRO qsfit_add_unknown
   ENDFOR
 
   ;;Save initial values of unknown lines center
-  IF !QSFIT_OPT.unkLines GT 0 THEN $
-     IF (gn(unkCenter) EQ 0) THEN unkCenter = xx[iadd]
+  IF (gn(unkCenter) EQ 0) THEN unkCenter = xx[iadd]
 
   ;;Enable plotting of unknown lines
   gfit.plot.(0).expr_Unknown.plot = 1
@@ -2255,7 +2103,7 @@ FUNCTION qsfit_reduce
   
   ;; Calculate the sum of all QSFit components except "known" emission lines
   sum_wo_lines = expr.(0).model - expr.(0).expr_broadlines - expr.(0).expr_narrowlines
-  sum_wo_lines /= (1. - expr.(0).expr_abslines)
+
 
   alllines = []
   FOR j=0, gn(lines)-1 DO BEGIN
@@ -2286,51 +2134,6 @@ FUNCTION qsfit_reduce
 
   ;;Save also all the lines results as an array
   out = CREATE_STRUCT(out, 'lines', alllines)
-  alllines = []
-
-
-  ;;-------------------------------------
-  ;;Reduce data for absorption lines
-  tmp = {   norm:   gnan(), norm_err:   gnan()  $
-          , fwhm:   gnan(), fwhm_err:   gnan()  $
-          , center: gnan(), center_err: gnan()  $
-          , ew:     gnan(), ew_err:     gnan()  $
-          , quality: 0b                         $
-        }
-  alllines = []
-  FOR j=0, gn(lines)-1 DO BEGIN
-     IF (lines[j].type EQ 'A') THEN BEGIN
-        lineName = 'ABS_' + STRUPCASE(lines[j].name)
-        icomp = WHERE(TAG_NAMES(gfit.comp) EQ lineName)
-        IF (icomp[0] EQ -1) THEN $
-           MESSAGE, 'No component named: ' + lineName
-
-        l = gfit.comp.(icomp)
-        tmp.norm       = l.norm.val
-        tmp.norm_err   = l.norm.err
-        tmp.fwhm       = l.fwhm.val
-        tmp.fwhm_err   = l.fwhm.err
-        tmp.center     = l.center.val
-        tmp.center_err = l.center.err
-        tmp.quality    = 0
-
-        tmp.ew = tmp.norm / INTERPOL(sum_wo_lines, gfit.cmp.(0).x, tmp.center, /nan)
-        tmp.ew_err = tmp.ew / tmp.norm * tmp.norm_err
-
-        out = CREATE_STRUCT(out, lineName, tmp)
-        alllines = [alllines, gstru_insert(tmp, 'line', lineName, 0)]
-     ENDIF
-  ENDFOR
-
-  IF (gn(alllines) GT 0) THEN BEGIN
-     out = CREATE_STRUCT(out, 'abslines', alllines)
-     alllines = []
-  ENDIF $
-  ELSE  $
-     out = CREATE_STRUCT(out, 'abslines', 0b)
-
-
-
 
   ;;-------------------------------------
   ;;Reduce data from Balmer component
@@ -2412,12 +2215,11 @@ PRO qsfit_show_step, filename
   gfit.plot.(0).main.rebin = 5
   
   gfit_plot
-  ggp_cmd, 'set key horizontal'
-  IF (gn(filename) EQ 1) THEN ggp, term='pdf fontscale 0.65 linewidth 1.3', out=filename + '.pdf' $
+  IF (gn(filename) EQ 1) THEN ggp, term='pdf', out=filename + '.pdf' $
   ELSE ggp
   
   gfit_plot_resid
-  IF (gn(filename) EQ 1) THEN ggp, term='pdf fontscale 0.65 linewidth 1.3', out=filename + '_resid.pdf' $
+  IF (gn(filename) EQ 1) THEN ggp, term='pdf', out=filename + '_resid.pdf' $
   ELSE ggp
   
   gfit.plot.(0).main.rebin = rebin
@@ -2507,13 +2309,11 @@ PRO qsfit_run
      ENDFOR
 
      ;;Save the enabled/disabled switch for each unknown line
-     IF (!QSFIT_OPT.unkLines GT 0) THEN BEGIN
-        unkEnabled = REPLICATE(0b, !QSFIT_OPT.unkLines)
-        FOR iiunk=1, !QSFIT_OPT.unkLines DO BEGIN
-           iunk = WHERE(TAG_NAMES(gfit.comp) EQ 'UNK' + gn2s(iiunk))
-           unkEnabled[iiunk-1] = gfit.comp.(iunk).enabled
-        ENDFOR
-     ENDIF
+     unkEnabled = REPLICATE(0b, !QSFIT_OPT.unkLines)
+     FOR iiunk=1, !QSFIT_OPT.unkLines DO BEGIN
+        iunk = WHERE(TAG_NAMES(gfit.comp) EQ 'UNK' + gn2s(iiunk))
+        unkEnabled[iiunk-1] = gfit.comp.(iunk).enabled
+     ENDFOR
   ENDIF $
   ELSE BEGIN
      ;;Enable/disable the same unknown lines we used in the main analysis.
@@ -2610,13 +2410,6 @@ PRO qsfit_report, red
   gprint, ' Emission lines '
   gps, red.lines
 
-  IF (gtype(red.abslines) EQ 'STRUCT') THEN BEGIN
-     gprint
-     gprint
-     gprint, ' Absorption lines '
-     gps, red.abslines
-  ENDIF
-
   gprint
   gprint
   gprint, ' Fit results '
@@ -2653,7 +2446,6 @@ END
 PRO qsfit_plot, red, FILENAME=filename, s11=s11, RESID=resid, TERM=term
   COMPILE_OPT IDL2
   ON_ERROR, !glib.on_error
-  COMMON GFIT
 
   gfit_restore, red.gfit
 
@@ -2703,22 +2495,12 @@ PRO qsfit_plot, red, FILENAME=filename, s11=s11, RESID=resid, TERM=term
      ggp_data, xx, yy, pl='w lines t "S11 slopes" lw 3 lc rgb "dark-green"'
   ENDIF
 
-  lines = qsfit_lineset()
-  FOR i=0, gn(lines)-1 DO BEGIN
-     IF (lines[i].type EQ 'A') THEN BEGIN
-        lineName = 'ABS_' + STRUPCASE(lines[i].name)
-        icomp = WHERE(TAG_NAMES(gfit.comp) EQ lineName)
-        ggp_data, gfit.comp.(icomp).center.val*[1,1], gminmax(red.gfit.cmp.(0).y), $
-                  pl='w l notit dt 2 lc rgb "gray"'
-     ENDIF
-  ENDFOR
-
   ;;Save or show plots
   IF (gn(filename) EQ 1) THEN BEGIN
      IF (KEYWORD_SET(term)) THEN $
-        ggp, output=filename+'.pdf', term=term $
+        ggp, output=filename+'.'+term, term=term $
      ELSE $
-        ggp, output=filename, gp=filename+'.gp'
+        ggp, output=filename+'.png', gp='plot/'+filename+'.gp', term='png' ;; Irham changes this line. Set "plot" as default folder to store the plot.
   ENDIF $
   ELSE ggp
 
@@ -2728,9 +2510,9 @@ PRO qsfit_plot, red, FILENAME=filename, s11=s11, RESID=resid, TERM=term
      gfit_plot_resid
      IF (gn(filename) EQ 1) THEN BEGIN
         IF (KEYWORD_SET(term)) THEN $
-           ggp, output=filename+'_resid.pdf', term=term $
+           ggp, output=filename+'_resid.'+term, term=term $
         ELSE $
-           ggp, output=filename+'_resid.pdf', gp=filename+'_resid.gp'
+           ggp, output=filename+'_resid'+'.png', gp='plot/'+filename+'_resid.gp', term='png' ;; Irham changes this line. Set "plot" as default folder to store the plot.
      ENDIF $
      ELSE ggp
   ENDIF
@@ -2781,14 +2563,6 @@ END
 ;  FILE (input, a scalar string)
 ;    Path to SDSS (DR10) spSpec file to be analyzed.
 ;
-;  INPUT= (optional input, a scalar string)
-;   String specifying the format of input file.  Possible values are:
-;      SDSS_DR10: SDSS DR10 FITS file (default if the keyword is not
-;      given);
-;      ASCII: ASCII file with three columns (observed wavelength in A,
-;      observed flux in units of 10^-17 erg s^-1 cm^-2 A^-1, and its
-;      1-sigma uncertainty) separated by spaces;
-;
 ;  OUTDIR= (optional input, a scalar string)
 ;    Directory name where the output files will be saved.  If not
 ;    given no output file will be written.
@@ -2808,7 +2582,7 @@ END
 ;RETURN VALUE:
 ;  The structure returned by qsfit_reduce().
 ;
-FUNCTION qsfit, file, INPUT=input, OUTDIR=outdir, PROCID=procid, TICTOC=tictoc, RESAMPLE=resample, _EXTRA=extra
+FUNCTION qsfit, file, OUTDIR=outdir, PROCID=procid, TICTOC=tictoc, RESAMPLE=resample, _EXTRA=extra
   COMPILE_OPT IDL2
   COMMON GFIT
   COMMON COM_RESAMPLING, unkCenter, unkEnabled
@@ -2816,15 +2590,7 @@ FUNCTION qsfit, file, INPUT=input, OUTDIR=outdir, PROCID=procid, TICTOC=tictoc, 
 
   IF (gn(resample) EQ 0) THEN resample = 1
   IF (gn(procid) EQ 0) THEN procid = 0
-  IF (gn(input) EQ 0) THEN input = 'SDSS_DR10'
 
-  CASE (input) OF
-     'SDSS_DR10':
-     'ASCII':
-     ELSE: MESSAGE, 'Unsupported input file format: ' + STRING(input[0])
-  ENDCASE
-
-  
   ;;Ensure unknown line center are evaluated according to current data
   unkCenter  = []
   unkEnabled = []
@@ -2913,12 +2679,12 @@ FUNCTION qsfit, file, INPUT=input, OUTDIR=outdir, PROCID=procid, TICTOC=tictoc, 
 
      ;;Log input parameters
      gprint, '********************************************************************************'
-     qsfit_log, 'QSFIT, ver. ' + qsfit_version()
+     qsfit_log, 'QSFIT_SDSS10, ver. ' + qsfit_version()
      qsfit_log, '  started at ' + SYSTIME()
      IF (resample GT 1) THEN $
         qsfit_log, "Resampling sequence: " + gn2s(iresample) + " / " + gn2s(resample)
      qsfit_log
-     qsfit_log, 'Input FILE   : ' + file + '   (format: ' + input + ')'
+     qsfit_log, 'Input FILE   : ' + file
      IF (KEYWORD_SET(outidr)) THEN BEGIN
         qsfit_log, 'Output file  : ' + file_dat
         qsfit_log, 'Log file     : ' + file_log
@@ -2934,12 +2700,8 @@ FUNCTION qsfit, file, INPUT=input, OUTDIR=outdir, PROCID=procid, TICTOC=tictoc, 
      qsfit_log
 
      ;;Load data into GFIT
-     IF (~readFromSaved) THEN BEGIN
-        CASE (input) OF
-           'SDSS_DR10': qsfit_read_SDSS_DR10, file, _EXTRA=extra
-           'ASCII':     qsfit_read_ascii    , file, _EXTRA=extra
-        ENDCASE
-     ENDIF
+     IF (~readFromSaved) THEN $
+        qsfit_read_SDSS_DR10, file, _EXTRA=extra
 
      ;;Set Process ID
      gfit.opt.pid = 0

@@ -1,0 +1,8 @@
+data/
+output/
+plot/
+plot_figures/
+result/
+table/
+QSO_name.csv
+*.png

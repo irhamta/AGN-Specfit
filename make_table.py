@@ -2,9 +2,9 @@
 """
 Created on Tue Nov 07 14:00:27 2017
 
-@author: irham
+@author: Irham
 
-This program is made to combine run_spectral_processing.pro .txt output tables
+This program is made to combine process_spectra.pro .txt output tables
 into one main table. This also generates list of file names to plot by using
 gnuplot > load 'plot_list.plt' < command.
 """
@@ -43,6 +43,11 @@ np.savetxt('plot_list.plt', plot_list, fmt='%s')
 
 # begin the loop
 for i in range(len(file_list)):
+    
+    # break the loop if data_measured.csv already exists
+    if os.path.isfile('result/data_measured.csv'):
+        break
+
     print 'Processing table number:', i
     
     # opening each file
@@ -58,21 +63,49 @@ for i in range(len(file_list)):
     else:
         temp = pd.read_csv(StringIO(file_name), delimiter='|')
         data = pd.concat((data, temp))
-        
-# add file names to table
-data['file_name'] = file_list
+    
+# remove .txt extension in file_name
+for i in range(len(file_list)):
+    file_list[i] = file_list[i][:-4]
 
 # make a list of columns to keep
 with open('result/columns_to_keep.txt', 'r') as file :
     columns_to_keep = file.read().replace('\n', '')\
         .replace(' ', '').replace("'", "").split(',')
-        
-# saving DataFrame to csv
-data.to_csv('result/data_measured.csv', index=False, 
-            sep=',', columns=columns_to_keep)
+
+# skip if data_measured.csv already exists
+if os.path.isfile('result/data_measured.csv'):
+    print 'data_measured.csv already exists!'
+
+else:
+    # add file names to table
+    data['file_name'] = file_list
+            
+    # saving DataFrame to csv
+    data.to_csv('result/data_measured.csv', index=False, 
+                sep=',', columns=columns_to_keep)
+
+
+
+
+#==============================================================================
+# Delete following lines if you are not Irham
+#==============================================================================
+
+print 'Combining tables.....'
+
+# left join master table with new measured table
+data_1 = pd.read_excel('../../Data/QSO_Sample.xlsx')
+data_2 = pd.read_csv('result/data_measured.csv')
+data_master = pd.merge(data_1, data_2, how='left', on='file_name')
+
+data_master.to_csv('result/QSO_Data.csv', index=False, sep=',')
 
 end = time.time()
 print 'Finished with elapsed time:', end - start
+
+#==============================================================================
+
 
 '''
 Further notes:

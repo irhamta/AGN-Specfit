@@ -4,5 +4,6 @@ plot/
 plot_figures/
 result/
 table/
-QSO_name.csv
+venv/
 *.png
+*.pyc

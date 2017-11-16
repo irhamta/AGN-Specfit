@@ -80,5 +80,4 @@
 'NA_SII_6731__EW', 'NA_SII_6731__EW_ERR',
 'NA_SII_6731__QUALITY',
 
-' CHISQ', '  DOF',
 'file_name'

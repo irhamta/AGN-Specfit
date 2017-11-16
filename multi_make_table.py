@@ -78,6 +78,7 @@ if __name__ == '__main__':
     for _ in tqdm.tqdm(pool.imap(process, file_list), total=len(file_list)):
         temp_data.append(_)
         pass
+    print 'Concatenating.....'
     data = pd.concat(temp_data)
     
     # close the pool
@@ -117,10 +118,11 @@ if __name__ == '__main__':
     
     # left join master table with new result table
     data_1 = pd.read_excel('../../Data/QSO_Sample.xlsx')
-    data_2 = pd.read_csv('result/data_result.csv')
+    data_2 = pd.read_csv('result/data_result.csv', 
+                         skipinitialspace=True) # to remove whitespace
     data_master = pd.merge(data_1, data_2, how='left', on='file_name')
     
-    data_master.to_csv('result/QSO_Data.csv', index=False, sep=',')
+    data_master.to_csv('result/QSO_Data_v0.csv', index=False, sep=',')
     
     end = time.time()
     print 'Finished with elapsed time:', end - start

@@ -301,14 +301,14 @@ param_o32w = {'a'        : (data['IRONOPT_BR__EW']
              'labelz'   : r'log(EW$_{\rm [O~III]}$/EW$_{\rm [O~II]}$)'}
 
 
-
+'''
 # plot EV diagram
-#ev_diagram(**param_o3)
-#ev_diagram(**param_o32)
-#ev_diagram(**param_o3w)
-#ev_diagram(**param_o32w)
+ev_diagram(**param_o3)
+ev_diagram(**param_o32)
+ev_diagram(**param_o3w)
+ev_diagram(**param_o32w)
 plt.close('all')
-
+'''
 
 #==============================================================================
 # Plotting Section  3
@@ -368,10 +368,18 @@ def plot_average(number, x, y, group, labelx, labely):
     plt.xlabel(labelx)
     plt.ylabel(labely)
     plt.xlim(min(binned)-0.05, max(binned)+0.05)
-#    plt.ylim(-2.5, 2)
+    
     if (2000 < number < 3000) \
     and number not in [2101, 2112, 2201, 2212, 2301, 2312]:
-        plt.ylim(41., 48.)
+        plt.ylim(41, 48)
+
+    elif (1000 < number < 2000):
+        plt.ylim(-2.5, 2)
+#        plt.xlim(40, 44)
+
+    else:
+        pass
+    
     plt.savefig('figures/fig_%i' %number)
 
 
@@ -544,6 +552,24 @@ plt.plot(data['NA_OIII_5007__LUM'].loc[rl_agn & o3_good],
          data['CONT_20CM__LUM'].loc[rl_agn & o3_good], 'r^', 
          label = 'Radio Loud', markersize=5)
 
+
+
+###
+index_11272_rq = data['NA_OIII_5007__LUM'].loc[rq_agn & o3_good].dropna().index\
+    .intersection(data['CONT_20CM__LUM'].loc[rq_agn & o3_good].dropna().index)
+
+print spearmanr(data['NA_OIII_5007__LUM'].loc[index_11272_rq],
+                 data['CONT_20CM__LUM'].loc[index_11272_rq])
+
+
+index_11272_rl = data['NA_OIII_5007__LUM'].loc[rl_agn & o3_good].dropna().index\
+    .intersection(data['CONT_20CM__LUM'].loc[rl_agn & o3_good].dropna().index)
+
+print spearmanr(data['NA_OIII_5007__LUM'].loc[index_11272_rl],
+                 data['CONT_20CM__LUM'].loc[index_11272_rl])
+###
+
+
 #print linregress((LO3)[fig_11258[0]], Lradio[fig_11258[0]])
 plt.xlabel('$\\log \ L_{\\rm [O \ III]} \ \\rm  (erg \ s^{-1})$')
 plt.ylabel('$\\log \ L_{\\rm 1.5 \ GHz} \ \\rm  (erg \ s^{-1} \ \\rm Hz^{-1})$')
@@ -555,10 +581,25 @@ plt.figure(11274)
 plt.plot(data['NA_OII_3727__LUM'].loc[rq_agn & o2_good], 
          data['CONT_20CM__LUM'].loc[rq_agn & o2_good], 'bo', 
          label = 'Radio Quiet', markersize=3)
-
 plt.plot(data['NA_OII_3727__LUM'].loc[rl_agn & o2_good], 
          data['CONT_20CM__LUM'].loc[rl_agn & o2_good], 'r^', 
          label = 'Radio Loud', markersize=5)
+
+###
+index_11274_rq = data['NA_OII_3727__LUM'].loc[rq_agn & o2_good].dropna().index\
+    .intersection(data['CONT_20CM__LUM'].loc[rq_agn & o2_good].dropna().index)
+
+print spearmanr(data['NA_OII_3727__LUM'].loc[index_11274_rq],
+                 data['CONT_20CM__LUM'].loc[index_11274_rq])
+
+
+index_11274_rl = data['NA_OII_3727__LUM'].loc[rl_agn & o2_good].dropna().index\
+    .intersection(data['CONT_20CM__LUM'].loc[rl_agn & o2_good].dropna().index)
+
+print spearmanr(data['NA_OII_3727__LUM'].loc[index_11274_rl],
+                 data['CONT_20CM__LUM'].loc[index_11274_rl])
+###
+
 
 plt.xlabel('$\\log \ L_{\\rm [O \ II]} \ \\rm  (erg \ s^{-1})$')
 plt.ylabel('$\\log \ L_{\\rm 1.5 \ GHz} \ \\rm  (erg \ s^{-1} \ \\rm Hz^{-1})$')
@@ -566,6 +607,23 @@ plt.legend(loc='best', fontsize='large')
 plt.savefig('figures/fig_11274')
 plt.close('all')
 
+
+plt.figure(11258)
+plt.plot(10.**(data['IRONOPT_BR__LUM'] - 
+               data['BR_HB__LUM']).loc[rq_agn & t1_agn], 
+         data['BR_HB__FWHM'].loc[rq_agn & t1_agn], 'k.', 
+         label = 'Radio Quiet', markersize=3, alpha=0.3)
+plt.plot(10.**(data['IRONOPT_BR__LUM'] - 
+               data['BR_HB__LUM']).loc[rl_agn & t1_agn], 
+         data['BR_HB__FWHM'].loc[rl_agn & t1_agn], 'r^', 
+         label = 'Radio Loud', markersize=5, alpha=1.)
+plt.xlim(-0.1, 10)
+plt.ylim(0, 18000)
+plt.xlabel('$\\log \ L_{\\rm [O \ II]} \ \\rm  (erg \ s^{-1})$')
+plt.ylabel('$\\log \ L_{\\rm 1.5 \ GHz} \ \\rm  (erg \ s^{-1} \ \\rm Hz^{-1})$')
+plt.legend(loc='best', fontsize='large')
+plt.savefig('figures/fig_11258')
+plt.close('all')
 
 
 #==============================================================================
@@ -689,7 +747,7 @@ bin_O32 = np.arange(min(LO32), max(LO32), 0.25/2.)
 bin_O3 = np.arange(min(LO3), max(LO3), 0.5/2.)
 bin_O2 = np.arange(min(LO2), max(LO2), 0.5/2.)
 
-
+'''
 plot_average(2101, x_o3['NA_OIII_5007__LUM'].values, 
              x_o3['L_x'].values, bin_O3, 
              '$\\log \ L_{\\rm [O \ III]} \ \\rm (erg \ s^{-1})$', 
@@ -843,6 +901,28 @@ plot_average(2312, rad_o32['NA_OIII_5007__LUM'].values-rad_o32['NA_OII_3727__LUM
              '$\\log \ L_{\\rm radio} \ \\rm (erg \ s^{-1})$')
 
 plt.close('all')
+'''
+
+#==============================================================================
+# Saving Final Table
+#==============================================================================
+
+columns_to_keep = [
+        'j', 'object_name', 'plate', 'mjd', 'fiberID', 'z',
+        'L_x', 'L_fuv', 'L_nuv', 'L_u', 'L_g', 'L_r', 'L_i', 'L_z',
+        'L_j', 'L_h', 'L_k', 'CONT_20CM__LUM',
+        'BR_HB__LUM', 'BR_HB__FWHM', 'IRONOPT_BR__LUM', 'CONT5__LUM',
+        'NA_OII_3727__LUM', 'NA_OIII_5007__LUM', 'NA_HB__LUM',
+        'NA_HA__LUM', 'NA_NII_6583__LUM', 'NA_SII__LUM',
+        ]
+
+data[columns_to_keep].columns
+
+data.loc[t1_agn].to_csv('../result/t1_agn.csv', index=False, 
+        sep=',', columns=columns_to_keep)
+
+
+#==============================================================================
 
 #==============================================================================
 # Error propagation calculator

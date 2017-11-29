@@ -133,4 +133,30 @@ if __name__ == '__main__':
 #       2. All of luminosities in units of 10**42 erg/s, 
 #       3. while FWHMs and velocity offsets in km/s
 #==============================================================================
-    
+
+
+
+#==============================================================================
+#   SDSS name generator
+#==============================================================================
+#    from astropy import units as u
+#    from astropy.coordinates import SkyCoord
+#    
+#    def name(x, y):
+#        c = SkyCoord(ra=x*u.degree, dec=y*u.degree, frame='icrs')
+#        if y >= 0:
+#            return str('SDSS J%02d%02d%05.2f+%02d%02d%04.1f' %(c.ra.hms[0], 
+#            c.ra.hms[1], c.ra.hms[2], c.dec.dms[0], c.dec.dms[1], c.dec.dms[2]))
+#        else:
+#            return str('SDSS J%02d%02d%05.2f-%02d%02d%04.1f' %(c.ra.hms[0], 
+#            c.ra.hms[1], c.ra.hms[2], abs(c.dec.dms[0]), abs(c.dec.dms[1]), 
+#            abs(c.dec.dms[2])))
+#    
+#    object_name = []
+#    for j in range(len(data)):
+#        print j
+#        object_name.append(name(data['ra'].loc[j], data['dec'].loc[j]))
+#    
+#    data['object_name'] = object_name
+#    data['object_name'].to_csv('object_name.csv', index=False, sep=',')
+#==============================================================================

@@ -102,7 +102,7 @@ def ev_diagram(a, b, c, mida, midb, number, mgrid,
 #==============================================================================
 
 # read data
-data = pd.read_csv('../result/QSO_Data_v0.csv', low_memory=False)
+data = pd.read_csv('../result/QSO_Data_v2.csv', low_memory=False)
 
 # compute [S II] total luminosity
 data['NA_SII__LUM'] = data['NA_SII_6716__LUM'] + data['NA_SII_6731__LUM']
@@ -208,8 +208,6 @@ plt.close('all')
 #   3. FWHMs and velocity offsets in km/s
 #==============================================================================
 
-
-
 # define good mask for narrow lines
 o2_col = ['NA_OII_3727__QUALITY']
 o2_good = (data[o2_col] == 0).all(axis=1) & t1_agn
@@ -301,14 +299,154 @@ param_o32w = {'a'        : (data['IRONOPT_BR__EW']
              'labelz'   : r'log(EW$_{\rm [O~III]}$/EW$_{\rm [O~II]}$)'}
 
 
+
+## plot EV diagram
+#ev_diagram(**param_o3)
+#ev_diagram(**param_o32)
+#ev_diagram(**param_o3w)
+#ev_diagram(**param_o32w)
+#plt.close('all')
+
 '''
-# plot EV diagram
-ev_diagram(**param_o3)
-ev_diagram(**param_o32)
-ev_diagram(**param_o3w)
-ev_diagram(**param_o32w)
-plt.close('all')
+# experiment on MgII space
+mg2_col = ['BR_MGII_2798__QUALITY', 'IRONUV__QUALITY']
+mg2_good = (data[mg2_col] == 0).all(axis=1) # & t1_agn
+
+mg2_good = mg2_good & o3_good
+
+param_mg2w =  {'a'        : (data['IRONUV__EW']
+                            / data['BR_MGII_2798__EW']).loc[mg2_good].values,
+    
+             'b'        : data['BR_MGII_2798__FWHM'].loc[mg2_good].values,
+             
+             'c'        : np.log10(data['NA_OIII_5007__EW'])\
+                             .loc[mg2_good].values,
+             
+             'mida'     : np.arange(2., 10., 0.2),
+             'midb'     : np.arange(0., 10000., 500.),
+             'mgrid'    : np.mgrid[2:10:20j, 0:10000:20j],
+             'number'   : 21,
+             'labelx'   : r'UV $R_{\rm Fe~II}$',
+             'labely'   : r'FWHM Mg~II (km/s)',
+             'labelz'   : r'log EW$_{\rm [O~III]}$'}
+
+ev_diagram(**param_mg2w)
 '''
+
+
+# calculating black hole mass and Eddington ratio based on Tammour et al. 2015
+M_BH = 0.91 + 0.5*np.log10(10**data['CONT5__LUM']/1e+44)\
+        + 2*np.log10(data['BR_HB__FWHM']) # in log10 unit
+L_bol = 9 * 10**data['CONT5__LUM']
+L_Edd = 1.5e+38 * 10**M_BH
+Edd_ratio = L_bol/L_Edd
+
+
+cont_good = (data['CONT5__QUALITY'] == 0) & t1_agn
+
+
+param_cont11 =  {'a'        : (data['IRONOPT_BR__EW']
+                                / data['BR_HB__EW']).loc[cont_good].values,
+    
+                 'b'        : data['BR_HB__FWHM'].loc[cont_good].values,
+                 
+                 'c'        : Edd_ratio.loc[cont_good].values,
+                 
+                 'mida'     : np.arange(-0.1, 11., 0.2),
+                 'midb'     : np.arange(0., 15000., 500.),
+                 'mgrid'    : np.mgrid[-0.1:11.:50j, 0:15000:30j],
+                 'number'   : 11,
+                 'labelx'   : r'$R_{\rm Fe~II}$',
+                 'labely'   : r'FWHM bH$\beta$ (km/s)',
+                 'labelz'   : r'$L/L_{\rm Edd}$'}
+
+param_cont12 =  {'a'        : (data['IRONOPT_BR__EW']
+                                / data['BR_HB__EW']).loc[cont_good].values,
+    
+                 'b'        : data['BR_HB__FWHM'].loc[cont_good].values,
+                 
+                 'c'        : M_BH.loc[cont_good].values,
+                 
+                 'mida'     : np.arange(-0.1, 11., 0.2),
+                 'midb'     : np.arange(0., 15000., 500.),
+                 'mgrid'    : np.mgrid[-0.1:11.:50j, 0:15000:30j],
+                 'number'   : 12,
+                 'labelx'   : r'$R_{\rm Fe~II}$',
+                 'labely'   : r'FWHM bH$\beta$ (km/s)',
+                 'labelz'   : r'$\log M_{\rm BH}$'}
+
+param_cont13 =  {'a'        : (data['IRONOPT_BR__EW']
+                                / data['BR_HB__EW']).loc[cont_good].values,
+    
+                 'b'        : data['BR_HB__FWHM'].loc[cont_good].values,
+                 
+                 'c'        : np.log10(L_bol).loc[cont_good].values,
+                 
+                 'mida'     : np.arange(-0.1, 11., 0.2),
+                 'midb'     : np.arange(0., 15000., 500.),
+                 'mgrid'    : np.mgrid[-0.1:11.:50j, 0:15000:30j],
+                 'number'   : 13,
+                 'labelx'   : r'$R_{\rm Fe~II}$',
+                 'labely'   : r'FWHM bH$\beta$ (km/s)',
+                 'labelz'   : r'$\log L_{\rm bol}$'}
+
+
+#ev_diagram(**param_cont11)
+#ev_diagram(**param_cont12)
+#ev_diagram(**param_cont13)
+
+
+param_cont21 =  {'a'        : 10.**(data['IRONOPT_BR__LUM']
+                                - data['BR_HB__LUM']).loc[cont_good].values,
+    
+                 'b'        : data['BR_HB__FWHM'].loc[cont_good].values,
+                 
+                 'c'        : Edd_ratio.loc[cont_good].values,
+                 
+                 'mida'     : np.arange(-0.1, 8.5, 0.2),
+                 'midb'     : np.arange(0., 15000., 500.),
+                 'mgrid'    : np.mgrid[-0.1:8.5:43j, 0:15000:30j],
+                 'number'   : 21,
+                 'labelx'   : r'$L_{\rm Fe~II}/L_{\rm bH\beta}$',
+                 'labely'   : r'FWHM bH$\beta$ (km/s)',
+                 'labelz'   : r'$L/L_{\rm Edd}$'}
+
+param_cont22 =  {'a'        : 10.**(data['IRONOPT_BR__LUM']
+                                - data['BR_HB__LUM']).loc[cont_good].values,
+    
+                 'b'        : data['BR_HB__FWHM'].loc[cont_good].values,
+                 
+                 'c'        : M_BH.loc[cont_good].values,
+                 
+                 'mida'     : np.arange(-0.1, 8.5, 0.2),
+                 'midb'     : np.arange(0., 15000., 500.),
+                 'mgrid'    : np.mgrid[-0.1:8.5:43j, 0:15000:30j],
+                 'number'   : 22,
+                 'labelx'   : r'$L_{\rm Fe~II}/L_{\rm bH\beta}$',
+                 'labely'   : r'FWHM bH$\beta$ (km/s)',
+                 'labelz'   : r'$\log M_{\rm BH}$'}
+
+
+param_cont23 =  {'a'        : 10.**(data['IRONOPT_BR__LUM']
+                                - data['BR_HB__LUM']).loc[cont_good].values,
+    
+                 'b'        : data['BR_HB__FWHM'].loc[cont_good].values,
+                 
+                 'c'        : np.log10(L_bol).loc[cont_good].values,
+                 
+                 'mida'     : np.arange(-0.1, 8.5, 0.2),
+                 'midb'     : np.arange(0., 15000., 500.),
+                 'mgrid'    : np.mgrid[-0.1:8.5:43j, 0:15000:30j],
+                 'number'   : 23,
+                 'labelx'   : r'$L_{\rm Fe~II}/L_{\rm bH\beta}$',
+                 'labely'   : r'FWHM bH$\beta$ (km/s)',
+                 'labelz'   : r'$\log L_{\rm bol}$'}
+
+
+#ev_diagram(**param_cont21)
+#ev_diagram(**param_cont22)
+#ev_diagram(**param_cont23)
+
 
 #==============================================================================
 # Plotting Section  3
@@ -907,19 +1045,18 @@ plt.close('all')
 # Saving Final Table
 #==============================================================================
 
-columns_to_keep = [
-        'j', 'object_name', 'plate', 'mjd', 'fiberID', 'z',
-        'L_x', 'L_fuv', 'L_nuv', 'L_u', 'L_g', 'L_r', 'L_i', 'L_z',
-        'L_j', 'L_h', 'L_k', 'CONT_20CM__LUM',
-        'BR_HB__LUM', 'BR_HB__FWHM', 'IRONOPT_BR__LUM', 'CONT5__LUM',
-        'NA_OII_3727__LUM', 'NA_OIII_5007__LUM', 'NA_HB__LUM',
-        'NA_HA__LUM', 'NA_NII_6583__LUM', 'NA_SII__LUM',
-        ]
+#columns_to_keep = [
+#        'j', 'object_name', 'plate', 'mjd', 'fiberID', 'z',
+#        'L_x', 'L_fuv', 'L_nuv', 'L_u', 'L_g', 'L_r', 'L_i', 'L_z',
+#        'L_j', 'L_h', 'L_k', 'CONT_20CM__LUM',
+#        'BR_HB__LUM', 'BR_HB__FWHM', 'IRONOPT_BR__LUM', 'CONT5__LUM',
+#        'NA_OII_3727__LUM', 'NA_OIII_5007__LUM', 'NA_HB__LUM',
+#        'NA_HA__LUM', 'NA_NII_6583__LUM', 'NA_SII__LUM', 'NA_OIII_5007__FWHM'
+#        ]
 
-data[columns_to_keep].columns
 
 data.loc[t1_agn].to_csv('../result/t1_agn.csv', index=False, 
-        sep=',', columns=columns_to_keep)
+        sep=',', columns=data.columns)
 
 
 #==============================================================================

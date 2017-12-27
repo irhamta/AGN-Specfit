@@ -10,7 +10,7 @@ PRO process_spectra
   help, /struct, data
   
   ;; error handling if file for plotting doesn't exist
-  for i = 0, 37138 do begin
+  for i = 0, 35748 do begin
     catch, error
     if error ne 0 then begin
       catch, /cancel
@@ -27,7 +27,7 @@ PRO process_spectra
     write_csv, 'table/'+data.field1[i]+'.txt', table_result
         
     ;; rebin and plotting, but without residual
-    res.gfit.plot.(0).main.rebin = 1
+    res.gfit.plot.(0).main.rebin = 3
     qsfit_plot, res, filename=data.field1[i], resid=0
 
   endfor

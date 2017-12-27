@@ -117,16 +117,17 @@ if __name__ == '__main__':
     print 'Combining tables.....'
     
     # left join master table with new result table
-    data_1 = pd.read_excel('../../Data/QSO_Sample.xlsx')
+#    data_1 = pd.read_excel('../../Data/QSO_Sample.xlsx')
+    data_1 = pd.read_csv('../../Data/t1 agn parent/T1_AGN_all.csv')
     data_2 = pd.read_csv('result/data_result.csv', 
                          skipinitialspace=True) # to remove whitespace
     data_master = pd.merge(data_1, data_2, how='left', on='file_name')
     
-    data_master.to_csv('result/QSO_Data_v0.csv', index=False, sep=',')
-    
+    data_master.to_csv('result/QSO_Data_all.csv', index=False, sep=',')
+
     end = time.time()
     print 'Finished with elapsed time:', end - start
-    
+
 #==============================================================================
 #   Further notes:
 #       1. It is important to select only quality flag equals to 0

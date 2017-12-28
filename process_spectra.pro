@@ -10,7 +10,7 @@ PRO process_spectra
   help, /struct, data
   
   ;; error handling if file for plotting doesn't exist
-  for i = 0, 35748 do begin
+  for i = 0, 0 do begin
     catch, error
     if error ne 0 then begin
       catch, /cancel

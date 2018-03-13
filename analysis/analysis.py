@@ -102,7 +102,17 @@ def ev_diagram(a, b, c, mida, midb, number, mgrid,
 #==============================================================================
 
 # read data
-data = pd.read_csv('../result/QSO_Data_v2.csv', low_memory=False)
+data = pd.read_csv('../result/QSO_Data_allz.csv', low_memory=False)
+
+# add radio morphology
+data_temp = pd.read_csv('../result/radio_morphology.csv', low_memory=False,
+                        usecols = ['file_name', 'radio_morphology'])
+data = pd.merge(data, data_temp, how='left', on='file_name')
+
+
+
+# selecting low-z sample
+data = data.loc[data['z'] < 0.9]
 
 # compute [S II] total luminosity
 data['NA_SII__LUM'] = data['NA_SII_6716__LUM'] + data['NA_SII_6731__LUM']
@@ -611,8 +621,6 @@ data['CONT_6CM__FLUX'] = 10**power_law_shift_freq(data['flux_20cm_int'],
 
 data['radio_loudness'] = data['CONT_6CM__FLUX']-data['CONT_2500A__FLUX']
 
-end = time.time()
-print 'Finished with elapsed time:', end - start
 
 #==============================================================================
 # Notes:
@@ -665,31 +673,56 @@ data.rename(columns={'logLX': 'L_x'}, inplace=True)
 rl_agn = data['radio_loudness'] > 10.
 rq_agn = data['radio_loudness'] <= 10.
 
+core_dominated = data['radio_morphology'] == 'core'
+lobe_dominated = data['radio_morphology'] == 'lobe'
+ambiguous = data['radio_morphology'] == 'ambiguous'
+
+
 plt.figure(11270)
 plt.plot(10**(data['NA_OIII_5007__LUM'] - data['NA_OII_3727__LUM'])\
          .loc[rq_agn & o32_good], 
          data['CONT_20CM__LUM'].loc[rq_agn & o32_good], 
-         'bo', label = 'Radio Quiet', markersize=3)
+         'ko', label = 'Radio Quiet', markersize=2, alpha=0.3)
+
+#plt.plot(10**(data['NA_OIII_5007__LUM'] - data['NA_OII_3727__LUM'])\
+#         .loc[rl_agn & o32_good], 
+#         data['CONT_20CM__LUM'].loc[rl_agn & o32_good], 
+#         'r^', label = 'Radio Loud', markersize=5)
 
 plt.plot(10**(data['NA_OIII_5007__LUM'] - data['NA_OII_3727__LUM'])\
-         .loc[rl_agn & o32_good], 
-         data['CONT_20CM__LUM'].loc[rl_agn & o32_good], 
-         'r^', label = 'Radio Loud', markersize=5)
+         .loc[rl_agn & o32_good & lobe_dominated], 
+         data['CONT_20CM__LUM'].loc[rl_agn & o32_good & lobe_dominated], 
+         'b^', label = 'Radio Loud LD', markersize=5, mfc='none')
+
+plt.plot(10**(data['NA_OIII_5007__LUM'] - data['NA_OII_3727__LUM'])\
+         .loc[rl_agn & o32_good & core_dominated], 
+         data['CONT_20CM__LUM'].loc[rl_agn & o32_good & core_dominated], 
+         'rs', label = 'Radio Loud CD', markersize=5, mfc='none')
+
 plt.xlabel('$L_{\\rm [O \ III]}/L_{\\rm [O \ II]}$', fontsize='x-large')
 plt.ylabel('$\\log \ L_{\\rm 1.5 \ GHz} \ \\rm  (erg \ s^{-1} \ \\rm Hz^{-1})$')
 plt.legend(loc='best', fontsize='large')
+plt.xlim(-0.3, 20)
 plt.savefig('figures/fig_11270')
 
 
 plt.figure(11272)
 plt.plot(data['NA_OIII_5007__LUM'].loc[rq_agn & o3_good], 
-         data['CONT_20CM__LUM'].loc[rq_agn & o3_good], 'bo', 
-         label = 'Radio Quiet', markersize=3)
+         data['CONT_20CM__LUM'].loc[rq_agn & o3_good], 'ko', 
+         label = 'Radio Quiet', markersize=2, alpha=0.3)
 
-plt.plot(data['NA_OIII_5007__LUM'].loc[rl_agn & o3_good], 
-         data['CONT_20CM__LUM'].loc[rl_agn & o3_good], 'r^', 
-         label = 'Radio Loud', markersize=5)
+#plt.plot(data['NA_OIII_5007__LUM'].loc[rl_agn & o3_good], 
+#         data['CONT_20CM__LUM'].loc[rl_agn & o3_good], 'r^', 
+#         label = 'Radio Loud', markersize=5)
 
+
+plt.plot(data['NA_OIII_5007__LUM'].loc[rl_agn & o3_good & lobe_dominated], 
+         data['CONT_20CM__LUM'].loc[rl_agn & o3_good & lobe_dominated], 'b^', 
+         label = 'Radio Loud LD', markersize=5, mfc='none')
+
+plt.plot(data['NA_OIII_5007__LUM'].loc[rl_agn & o3_good & core_dominated], 
+         data['CONT_20CM__LUM'].loc[rl_agn & o3_good & core_dominated], 'rs', 
+         label = 'Radio Loud CD', markersize=5, mfc='none')
 
 
 ###
@@ -717,11 +750,20 @@ plt.savefig('figures/fig_11272')
 
 plt.figure(11274)
 plt.plot(data['NA_OII_3727__LUM'].loc[rq_agn & o2_good], 
-         data['CONT_20CM__LUM'].loc[rq_agn & o2_good], 'bo', 
-         label = 'Radio Quiet', markersize=3)
-plt.plot(data['NA_OII_3727__LUM'].loc[rl_agn & o2_good], 
-         data['CONT_20CM__LUM'].loc[rl_agn & o2_good], 'r^', 
-         label = 'Radio Loud', markersize=5)
+         data['CONT_20CM__LUM'].loc[rq_agn & o2_good], 'ko', 
+         label = 'Radio Quiet', markersize=2, alpha=0.3)
+
+#plt.plot(data['NA_OII_3727__LUM'].loc[rl_agn & o2_good], 
+#         data['CONT_20CM__LUM'].loc[rl_agn & o2_good], 'r^', 
+#         label = 'Radio Loud', markersize=5)
+
+plt.plot(data['NA_OII_3727__LUM'].loc[rl_agn & o2_good & lobe_dominated], 
+         data['CONT_20CM__LUM'].loc[rl_agn & o2_good & lobe_dominated], 'b^', 
+         label = 'Radio Loud LD', markersize=5, mfc='none')
+
+plt.plot(data['NA_OII_3727__LUM'].loc[rl_agn & o2_good & core_dominated], 
+         data['CONT_20CM__LUM'].loc[rl_agn & o2_good & core_dominated], 'rs', 
+         label = 'Radio Loud CD', markersize=5, mfc='none')
 
 ###
 index_11274_rq = data['NA_OII_3727__LUM'].loc[rq_agn & o2_good].dropna().index\
@@ -749,15 +791,19 @@ plt.close('all')
 plt.figure(11258)
 plt.plot(10.**(data['IRONOPT_BR__LUM'] - 
                data['BR_HB__LUM']).loc[rq_agn & t1_agn], 
-         data['BR_HB__FWHM'].loc[rq_agn & t1_agn], 'k.', 
-         label = 'Radio Quiet', markersize=3, alpha=0.3)
+         data['BR_HB__FWHM'].loc[rq_agn & t1_agn], 'ko', 
+         label = 'Radio Quiet', markersize=2, alpha=0.3)
 plt.plot(10.**(data['IRONOPT_BR__LUM'] - 
-               data['BR_HB__LUM']).loc[rl_agn & t1_agn], 
-         data['BR_HB__FWHM'].loc[rl_agn & t1_agn], 'r^', 
-         label = 'Radio Loud', markersize=5, alpha=1.)
+               data['BR_HB__LUM']).loc[rl_agn & t1_agn & lobe_dominated], 
+         data['BR_HB__FWHM'].loc[rl_agn & t1_agn & lobe_dominated], 'b^', 
+         label = 'Radio Loud LD', markersize=5, mfc='none')
+plt.plot(10.**(data['IRONOPT_BR__LUM'] - 
+               data['BR_HB__LUM']).loc[rl_agn & t1_agn & core_dominated], 
+         data['BR_HB__FWHM'].loc[rl_agn & t1_agn & core_dominated], 'rs', 
+         label = 'Radio Loud CD', markersize=5, mfc='none')
 plt.xlim(-0.1, 10)
 plt.ylim(0, 18000)
-plt.xlabel('$\\log \ L_{\\rm [O \ II]} \ \\rm  (erg \ s^{-1})$')
+plt.xlabel('$\\log \ L_{\\rm Fe~II}/L_{\\rm bH\\beta}$')
 plt.ylabel('$\\log \ L_{\\rm 1.5 \ GHz} \ \\rm  (erg \ s^{-1} \ \\rm Hz^{-1})$')
 plt.legend(loc='best', fontsize='large')
 plt.savefig('figures/fig_11258')
@@ -1058,6 +1104,9 @@ plt.close('all')
 data.loc[t1_agn].to_csv('../result/t1_agn.csv', index=False, 
         sep=',', columns=data.columns)
 
+
+end = time.time()
+print 'Finished with elapsed time:', end - start
 
 #==============================================================================
 
